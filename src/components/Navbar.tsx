@@ -50,7 +50,7 @@ export default function Navbar() {
         />
         <HStack spacing={8} alignItems={"center"}>
           <Box fontWeight="bold" fontSize="xl">
-            <RouterLink to="/">zkDemocracy</RouterLink>
+            <RouterLink to="/">zkVoting</RouterLink>
           </Box>
           <HStack as={"nav"} spacing={4} display={{ base: "none", md: "flex" }}>
             <NavLink to="/">Dashboard</NavLink>
