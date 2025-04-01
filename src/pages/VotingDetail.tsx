@@ -40,7 +40,7 @@ import {
   SimpleGrid,
 } from "@chakra-ui/react"
 import { useAuth } from "../context/AuthContext"
-import { api, type Vote } from "../services/api"
+import { api, type Vote, type Group } from "../services/api"
 
 export default function VotingDetail() {
   const { uuid } = useParams<{ uuid: string }>()
@@ -51,13 +51,9 @@ export default function VotingDetail() {
   const [votes, setVotes] = useState<Vote[]>([])
   const [isLoadingVotes, setIsLoadingVotes] = useState(false)
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({})
+  const [groups, setGroups] = useState<Group[]>([])
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false)
   const toast = useToast()
-
-  // Mock groups for demonstration
-  const groups = [
-    { uuid: "123e4567-e89b-12d3-a456-426614174000", name: "Test Group 1" },
-    { uuid: "223e4567-e89b-12d3-a456-426614174001", name: "Test Group 2" },
-  ]
 
   const fetchVotes = async () => {
     if (!uuid) return
@@ -87,9 +83,29 @@ export default function VotingDetail() {
     }
   }
 
+  const fetchGroups = async () => {
+    setIsLoadingGroups(true)
+    try {
+      const fetchedGroups = await api.getAllGroups()
+      setGroups(fetchedGroups)
+    } catch (error) {
+      console.error("Error fetching groups:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch groups",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      })
+    } finally {
+      setIsLoadingGroups(false)
+    }
+  }
+
   useEffect(() => {
     if (address && uuid) {
       fetchVotes()
+      fetchGroups()
     }
   }, [address, uuid])
 
@@ -251,17 +267,23 @@ export default function VotingDetail() {
           <ModalBody>
             <FormControl>
               <FormLabel>Select Group</FormLabel>
-              <Select
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                placeholder="Select group"
-              >
-                {groups.map((group) => (
-                  <option key={group.uuid} value={group.uuid}>
-                    {group.name}
-                  </option>
-                ))}
-              </Select>
+              {isLoadingGroups ? (
+                <Center py={4}>
+                  <Spinner />
+                </Center>
+              ) : (
+                <Select
+                  value={selectedGroup}
+                  onChange={(e) => setSelectedGroup(e.target.value)}
+                  placeholder="Select group"
+                >
+                  {groups.map((group) => (
+                    <option key={group.uuid} value={group.uuid}>
+                      {group.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
             </FormControl>
           </ModalBody>
 
@@ -269,7 +291,12 @@ export default function VotingDetail() {
             <Button variant="ghost" mr={3} onClick={onClose}>
               Cancel
             </Button>
-            <Button colorScheme="blue" onClick={handleAssignGroup} isLoading={isLoading}>
+            <Button
+              colorScheme="blue"
+              onClick={handleAssignGroup}
+              isLoading={isLoading}
+              isDisabled={isLoadingGroups || !selectedGroup}
+            >
               Assign Group
             </Button>
           </ModalFooter>

@@ -39,14 +39,11 @@ export default function Groups() {
   const [isLoadingGroups, setIsLoadingGroups] = useState(false)
   const toast = useToast()
 
-  // Since the backend doesn't have an endpoint to list all groups,
-  // we'll need to implement this in a real application
   const fetchGroups = async () => {
     setIsLoadingGroups(true)
     try {
-      // In a real application, you would call an API endpoint to get all groups
-      // For now, we'll use empty array since we don't have this endpoint
-      setGroups([])
+      const fetchedGroups = await api.getAllGroups()
+      setGroups(fetchedGroups)
     } catch (error) {
       console.error("Error fetching groups:", error)
       toast({

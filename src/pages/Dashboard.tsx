@@ -32,24 +32,23 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchCounts = async () => {
       if (!address) return
 
       setIsLoading(true)
       try {
-        const groups = await api.getAllGroups()
-        const votings = await api.getAllVotings()
+        const [groups, votings] = await Promise.all([api.getAllGroups(), api.getAllVotings()])
 
         setGroupCount(groups.length)
         setVotingCount(votings.length)
       } catch (error) {
-        console.error("Error fetching dashboard data:", error)
+        console.error("Error fetching data:", error)
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchData()
+    fetchCounts()
   }, [address])
 
   return (
@@ -60,63 +59,55 @@ export default function Dashboard() {
         <Card mb={6}>
           <CardBody>
             <Heading size="md" mb={4}>
-              Welcome to zkDemocracy
+              Welcome to zkVoting
             </Heading>
             <Text mb={4}>
-              zkDemocracy is an anonymous voting system based on zero-knowledge proofs. Connect your wallet to get
+              zkVoting is an anonymous voting system based on zero-knowledge proofs. Connect your wallet to get
               started.
             </Text>
           </CardBody>
         </Card>
       ) : (
         <>
-          {isLoading ? (
-            <Card mb={6}>
-              <CardBody display="flex" justifyContent="center" alignItems="center" py={10}>
-                <Spinner size="xl" />
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={6}>
+            <Card>
+              <CardBody>
+                <Stat>
+                  <Flex align="center">
+                    <Icon as={FiUsers} boxSize={6} mr={2} color="blue.500" />
+                    <StatLabel fontSize="lg">Groups</StatLabel>
+                  </Flex>
+                  <StatNumber>{isLoading ? <Spinner size="sm" /> : (groupCount ?? "-")}</StatNumber>
+                  <StatHelpText>Voting groups you belong to</StatHelpText>
+                </Stat>
               </CardBody>
+              <Divider />
+              <CardFooter>
+                <Button as={RouterLink} to="/groups" variant="ghost" size="sm">
+                  View Groups
+                </Button>
+              </CardFooter>
             </Card>
-          ) : (
-            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={6}>
-              <Card>
-                <CardBody>
-                  <Stat>
-                    <Flex align="center">
-                      <Icon as={FiUsers} boxSize={6} mr={2} color="blue.500" />
-                      <StatLabel fontSize="lg">Groups</StatLabel>
-                    </Flex>
-                    <StatNumber>{groupCount !== null ? groupCount : "-"}</StatNumber>
-                    <StatHelpText>Voting groups you belong to</StatHelpText>
-                  </Stat>
-                </CardBody>
-                <Divider />
-                <CardFooter>
-                  <Button as={RouterLink} to="/groups" variant="ghost" size="sm">
-                    View Groups
-                  </Button>
-                </CardFooter>
-              </Card>
 
-              <Card>
-                <CardBody>
-                  <Stat>
-                    <Flex align="center">
-                      <Icon as={FiCheckSquare} boxSize={6} mr={2} color="green.500" />
-                      <StatLabel fontSize="lg">Votings</StatLabel>
-                    </Flex>
-                    <StatNumber>{votingCount !== null ? votingCount : "-"}</StatNumber>
-                    <StatHelpText>Active voting events</StatHelpText>
-                  </Stat>
-                </CardBody>
-                <Divider />
-                <CardFooter>
-                  <Button as={RouterLink} to="/votings" variant="ghost" size="sm">
-                    View Votings
-                  </Button>
-                </CardFooter>
-              </Card>
-            </SimpleGrid>
-          )}
+            <Card>
+              <CardBody>
+                <Stat>
+                  <Flex align="center">
+                    <Icon as={FiCheckSquare} boxSize={6} mr={2} color="green.500" />
+                    <StatLabel fontSize="lg">Votings</StatLabel>
+                  </Flex>
+                  <StatNumber>{isLoading ? <Spinner size="sm" /> : (votingCount ?? "-")}</StatNumber>
+                  <StatHelpText>Active voting events</StatHelpText>
+                </Stat>
+              </CardBody>
+              <Divider />
+              <CardFooter>
+                <Button as={RouterLink} to="/votings" variant="ghost" size="sm">
+                  View Votings
+                </Button>
+              </CardFooter>
+            </Card>
+          </SimpleGrid>
 
           {isAdmin && (
             <Card>
