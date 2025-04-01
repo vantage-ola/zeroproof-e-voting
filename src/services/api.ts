@@ -148,9 +148,8 @@ export const api = {
   },
 
   getAllVotings: async (): Promise<Voting[]> => {
-    // This is a placeholder for a backend endpoint that would list all votings
-    // You would need to implement this endpoint on your backend
-    throw new Error("Not implemented on backend")
+    const response = await axiosInstance.get('/votings')
+    return response.data.votings
   },
 }
 
