@@ -39,14 +39,12 @@ export default function Votings() {
   const [isLoadingVotings, setIsLoadingVotings] = useState(false)
   const toast = useToast()
 
-  // Since the backend doesn't have an endpoint to list all votings,
-  // we'll need to implement this in a real application
+  // Update the fetchVotings function to use the real API
   const fetchVotings = async () => {
     setIsLoadingVotings(true)
     try {
-      // In a real application, you would call an API endpoint to get all votings
-      // For now, we'll use empty array since we don't have this endpoint
-      setVotings([])
+      const fetchedVotings = await api.getAllVotings()
+      setVotings(fetchedVotings)
     } catch (error) {
       console.error("Error fetching votings:", error)
       toast({
