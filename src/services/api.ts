@@ -53,6 +53,13 @@ export interface MerkleProof {
   pathIndices: number[]
 }
 
+export interface UserIdentity {
+  address?: string
+  encryptedPrivateKey: string
+  salt: string
+  commitment: string
+}
+
 export const api = {
   // Auth
   getNonce: async (address: string): Promise<string> => {
@@ -151,6 +158,33 @@ export const api = {
     const response = await axiosInstance.get('/votings')
     return response.data.votings
   },
+
+  // this is the most useless function in existence lol
+  getUserIdentity: async (address: string): Promise<UserIdentity> => {
+
+    const response = await axiosInstance.get(`/users/${address}/identity`)
+    const [extractedMessage] = await verifyAndExtractMessage(response.data)
+
+    return {
+      address: extractedMessage.address,
+      encryptedPrivateKey: extractedMessage.encryptedPrivateKey,
+      salt: extractedMessage.salt,
+      commitment: extractedMessage.commitment
+    }
+  },
+
+  createOrGetUserIdentity: async (address: string): Promise<UserIdentity> => {
+
+    const response = await axiosInstance.post(`/users/${address}/identity`)
+    const [extractedMessage] = await verifyAndExtractMessage(response.data)
+
+    return {
+      address: extractedMessage.address,
+      encryptedPrivateKey: extractedMessage.encryptedPrivateKey,
+      salt: extractedMessage.salt,
+      commitment: extractedMessage.commitment,
+    }
+  }
 }
 
 // Helper function to verify and extract message from server response
