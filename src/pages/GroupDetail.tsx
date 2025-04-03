@@ -34,18 +34,34 @@ import {
   Badge,
 } from "@chakra-ui/react"
 import { useAuth } from "../context/AuthContext"
-import { api, type GroupMember } from "../services/api"
+import { api, type GroupMember, type Group } from "../services/api"
+import { CopyIcon } from "@chakra-ui/icons"
+import { isAddress } from "ethers"
 
 export default function GroupDetail() {
   const { uuid } = useParams<{ uuid: string }>()
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { address, isAdmin, signMessage } = useAuth()
-  const [commitment, setCommitment] = useState("")
-  const [identityHash, setIdentityHash] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [members, setMembers] = useState<GroupMember[]>([])
   const [isLoadingMembers, setIsLoadingMembers] = useState(false)
   const [groupRoot, setGroupRoot] = useState("")
+  const [newMemberAddress, setNewMemberAddress] = useState("")
+  const [isAddingMember, setIsAddingMember] = useState(false)
+
+  const [isGroupIdCopied, setIsGroupIdCopied] = useState(false)
+
+  const [groupDetails, setGroupDetails] = useState<Group | null>(null)
+  const [isLoadingGroupDetails, setIsLoadingGroupDetails] = useState(false)
+
+  const copyGroupId = () => {
+    if (uuid) {
+      navigator.clipboard.writeText(uuid)
+      setIsGroupIdCopied(true)
+      setTimeout(() => setIsGroupIdCopied(false), 2000)
+    }
+  }
+
   const toast = useToast()
 
   const fetchGroupMembers = async () => {
@@ -72,17 +88,42 @@ export default function GroupDetail() {
     }
   }
 
+  const fetchGroupDetails = async () => {
+    if (!uuid) return
+
+    setIsLoadingGroupDetails(true)
+    try {
+      const groups = await api.getAllGroups()
+      const group = groups.find(g => g.uuid === uuid)
+      if (group) {
+        setGroupDetails(group)
+      }
+    } catch (error) {
+      console.error("Error fetching group details:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch group details",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      })
+    } finally {
+      setIsLoadingGroupDetails(false)
+    }
+  }
+
   useEffect(() => {
     if (address && uuid) {
       fetchGroupMembers()
+      fetchGroupDetails()
     }
   }, [address, uuid])
 
   const handleAddMember = async () => {
-    if (!commitment.trim() || !identityHash.trim()) {
+    if (!uuid || !newMemberAddress || !isAddress(newMemberAddress)) {
       toast({
         title: "Error",
-        description: "Please fill in all fields",
+        description: "Please enter a valid Ethereum address",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -90,22 +131,24 @@ export default function GroupDetail() {
       return
     }
 
-    if (!uuid) return
-
-    setIsLoading(true)
+    setIsAddingMember(true)
     try {
-      const message = {
+      // First get or create the user's identity
+      const identity = await api.createOrGetUserIdentity(newMemberAddress)
+
+      // Prepare the payload for adding member
+      const payload = {
         path: `/groups/${uuid}/members/add`,
-        commitment,
-        identity_hash: identityHash,
-        proof: "proof", // In a real app, you would generate a proper proof
+        commitment: identity.commitment,
+        identity_hash: identity.encryptedPrivateKey, // Using encrypted private key as identity hash
+        proof: "proof", // Placeholder proof
       }
 
-      const payload = await signMessage(message)
-      await api.addGroupMember(uuid, payload)
+      // Sign the message (assuming your auth context has this)
+      const signedMessage = await signMessage(payload)
 
-      // Refresh the members list
-      await fetchGroupMembers()
+      // Add the member to the group
+      await api.addGroupMember(uuid, signedMessage)
 
       toast({
         title: "Success",
@@ -115,9 +158,10 @@ export default function GroupDetail() {
         isClosable: true,
       })
 
+      // Refresh the members list
+      await fetchGroupMembers()
       onClose()
-      setCommitment("")
-      setIdentityHash("")
+      setNewMemberAddress("")
     } catch (error) {
       console.error("Error adding member:", error)
       toast({
@@ -128,7 +172,7 @@ export default function GroupDetail() {
         isClosable: true,
       })
     } finally {
-      setIsLoading(false)
+      setIsAddingMember(false)
     }
   }
 
@@ -161,9 +205,27 @@ export default function GroupDetail() {
           <Heading size="md">Group Information</Heading>
         </CardHeader>
         <CardBody>
-          <Text>
-            <strong>Group ID:</strong> {uuid}
-          </Text>
+        <Text
+          mb={3}
+          fontSize="lg"
+          fontWeight="medium"
+        >
+          <strong style={{fontSize: "1.1em", color: "#2D3748"}}>Name:</strong>{" "}
+          {groupDetails?.name || "Loading..."}
+        </Text>
+          <Box display="flex" alignItems="center">
+            <Text mr={2}>
+              <strong>Group ID:</strong> {uuid}
+            </Text>
+            <Button
+              size="xs"
+              onClick={copyGroupId}
+              leftIcon={<CopyIcon />}
+              colorScheme={isGroupIdCopied ? "green" : "gray"}
+            >
+              {isGroupIdCopied ? "Copied!" : "Copy"}
+            </Button>
+          </Box>
           <Text mt={2}>
             <strong>Merkle Root:</strong> {groupRoot ? groupRoot : "Loading..."}
           </Text>
@@ -222,29 +284,24 @@ export default function GroupDetail() {
           <ModalHeader>Add Group Member</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <FormControl mb={4}>
-              <FormLabel>Commitment</FormLabel>
-              <Input
-                value={commitment}
-                onChange={(e) => setCommitment(e.target.value)}
-                placeholder="Enter commitment"
-              />
-            </FormControl>
             <FormControl>
-              <FormLabel>Identity Hash</FormLabel>
+              <FormLabel>Member Ethereum Address</FormLabel>
               <Input
-                value={identityHash}
-                onChange={(e) => setIdentityHash(e.target.value)}
-                placeholder="Enter identity hash"
+                placeholder="0x..."
+                value={newMemberAddress}
+                onChange={(e) => setNewMemberAddress(e.target.value)}
               />
             </FormControl>
           </ModalBody>
-
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onClose}>
               Cancel
             </Button>
-            <Button colorScheme="blue" onClick={handleAddMember} isLoading={isLoading}>
+            <Button
+              onClick={handleAddMember}
+              isLoading={isAddingMember}
+              isDisabled={!newMemberAddress || !isAddress(newMemberAddress)}
+            >
               Add Member
             </Button>
           </ModalFooter>

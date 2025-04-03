@@ -41,6 +41,7 @@ import {
 } from "@chakra-ui/react"
 import { useAuth } from "../context/AuthContext"
 import { api, type Vote, type Group } from "../services/api"
+import { Voting } from "../services/api"
 
 export default function VotingDetail() {
   const { uuid } = useParams<{ uuid: string }>()
@@ -53,6 +54,10 @@ export default function VotingDetail() {
   const [voteCounts, setVoteCounts] = useState<Record<string, number>>({})
   const [groups, setGroups] = useState<Group[]>([])
   const [isLoadingGroups, setIsLoadingGroups] = useState(false)
+
+  const [votingDetails, setVotingDetails] = useState<Voting | null>(null)
+  const [isLoadingVotingDetails, setIsLoadingVotingDetails] = useState(false)
+
   const toast = useToast()
 
   const fetchVotes = async () => {
@@ -102,10 +107,35 @@ export default function VotingDetail() {
     }
   }
 
+  const fetchVotingDetails = async () => {
+    if (!uuid) return
+
+    setIsLoadingVotingDetails(true)
+    try {
+      const votings = await api.getAllVotings()
+      const voting = votings.find(v => v.uuid === uuid)
+      if (voting) {
+        setVotingDetails(voting)
+      }
+    } catch (error) {
+      console.error("Error fetching voting details:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch voting details",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      })
+    } finally {
+      setIsLoadingVotingDetails(false)
+    }
+  }
+
   useEffect(() => {
     if (address && uuid) {
       fetchVotes()
       fetchGroups()
+      fetchVotingDetails()
     }
   }, [address, uuid])
 
@@ -180,25 +210,35 @@ export default function VotingDetail() {
               Assign Group
             </Button>
           )}
-          <Button as={RouterLink} to={`/votings/${uuid}/vote`} colorScheme="green">
-            Cast Vote
-          </Button>
+          {!isAdmin && (
+            <Button as={RouterLink} to={`/votings/${uuid}/vote`} colorScheme="green">
+              Cast Vote
+            </Button>
+          )}
         </Flex>
       </Box>
 
       <Card mb={6}>
-        <CardHeader>
-          <Heading size="md">Voting Information</Heading>
-        </CardHeader>
-        <CardBody>
-          <Text>
-            <strong>Voting ID:</strong> {uuid}
-          </Text>
-          <Text mt={2}>
-            <strong>Total Votes:</strong> <Badge colorScheme="blue">{votes.length}</Badge>
-          </Text>
-        </CardBody>
-      </Card>
+      <CardHeader>
+        <Heading size="md">Voting Information</Heading>
+      </CardHeader>
+      <CardBody>
+        <Text
+          mb={3}
+          fontSize="lg"
+          fontWeight="medium"
+        >
+          <strong style={{fontSize: "1.1em", color: "#2D3748"}}>Name:</strong>{" "}
+          {votingDetails?.name || "Loading..."}
+        </Text>
+        <Text mt={2}>
+          <strong>Voting ID:</strong> {uuid}
+        </Text>
+        <Text mt={2}>
+          <strong>Total Votes:</strong> <Badge colorScheme="blue">{votes.length}</Badge>
+        </Text>
+      </CardBody>
+    </Card>
 
       {Object.keys(voteCounts).length > 0 && (
         <Card mb={6}>
