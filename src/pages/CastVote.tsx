@@ -1,7 +1,5 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
   Heading,
@@ -22,36 +20,98 @@ import {
   FormControl,
   FormLabel,
   Input,
-} from "@chakra-ui/react"
-import { useAuth } from "../context/AuthContext"
-import { api } from "../services/api"
-import { Identity, generateProof } from "@semaphore-protocol/core"
-import { uuidToHex } from "../utils/conversion"
+  Spinner,
+  Center,
+} from "@chakra-ui/react";
+import { useAuth } from "../context/AuthContext";
+import { api } from "../services/api";
+import { Identity, generateProof } from "@semaphore-protocol/core";
+import { uuidToHex } from "../utils/conversion";
+import { Voting } from "../services/api";
+//import { decryptPrivateKey } from "@/utils/decrypt_identity";
 
 export default function CastVote() {
-  const { uuid } = useParams<{ uuid: string }>()
-  const navigate = useNavigate()
-  const { address } = useAuth()
-  const [selectedOption, setSelectedOption] = useState("")
-  const [groupUuid, setGroupUuid] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [identity, setIdentity] = useState<Identity | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const toast = useToast()
+  const { uuid } = useParams<{ uuid: string }>();
+  const navigate = useNavigate();
+  const { address } = useAuth();
+  const [selectedOption, setSelectedOption] = useState("");
+  const [groupUuid, setGroupUuid] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isFetchingIdentity, setIsFetchingIdentity] = useState(false);
+  const toast = useToast();
 
-  // Options for the vote
+  const [votingDetails, setVotingDetails] = useState<Voting | null>(null)
+  const [isLoadingVotingDetails, setIsLoadingVotingDetails] = useState(false)
+
   const options = [
     { value: "1", label: "Option 1" },
     { value: "2", label: "Option 2" },
     { value: "3", label: "Option 3" },
     { value: "4", label: "Option 4" },
-  ]
+  ];
 
+  // Fetch and decrypt identity when address changes
   useEffect(() => {
-    // Create a new identity when the component mounts
-    const newIdentity = new Identity()
-    setIdentity(newIdentity)
-  }, [])
+    const fetchIdentity = async () => {
+        if (!address) return;
+
+        setIsFetchingIdentity(true);
+        setError(null);
+
+        try {
+            // Get the encrypted identity from server
+            const identityData = await api.createOrGetUserIdentity(address);
+
+            if (!identityData?.encryptedPrivateKey || !identityData?.salt) {
+                throw new Error('Invalid identity data received from server');
+            }
+
+            // Decrypt the private key
+            /**const privateKey = await decryptPrivateKey(
+                identityData.encryptedPrivateKey,
+                address,
+                identityData.salt
+            );
+            **/
+            // Validate the private key
+
+
+            // Import the identity
+            const userIdentity = Identity.import(identityData.encryptedPrivateKey);
+
+            setIdentity(userIdentity);
+        } catch (error) {
+            console.error("Error fetching identity:", error);
+            setError(error instanceof Error ? error.message : 'Failed to load your identity');
+        } finally {
+            setIsFetchingIdentity(false);
+        }
+    };
+
+    const fetchVotingDetails = async () => {
+      if (!uuid) return
+
+      setIsLoadingVotingDetails(true)
+      try {
+        const votings = await api.getAllVotings()
+        const voting = votings.find(v => v.uuid === uuid)
+        if (voting) {
+          setVotingDetails(voting)
+        }
+      } catch (error) {
+        console.error("Error fetching voting details:", error)
+        setError(error instanceof Error ? error.message : "Failed to load voting details")
+      } finally {
+        setIsLoadingVotingDetails(false)
+      }
+    }
+    fetchVotingDetails()
+    fetchIdentity();
+}, [address]);
+
+
 
   const handleCastVote = async () => {
     if (!selectedOption) {
@@ -61,8 +121,8 @@ export default function CastVote() {
         status: "error",
         duration: 3000,
         isClosable: true,
-      })
-      return
+      });
+      return;
     }
 
     if (!groupUuid) {
@@ -72,53 +132,59 @@ export default function CastVote() {
         status: "error",
         duration: 3000,
         isClosable: true,
-      })
-      return
+      });
+      return;
     }
 
-    if (!uuid || !identity) return
+    if (!uuid || !identity) return;
 
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
       // 1. Get merkle proof
-      try {
-        const merkleProofResponse = await api.getMerkleProof(groupUuid, identity.commitment.toString())
+      const merkleProofResponse = await api.getMerkleProof(
+        groupUuid,
+        identity.commitment.toString()
+      );
 
-        // 2. Generate ZK proof
-        const scope = uuidToHex(uuid)
-        const proof = await generateProof(identity, merkleProofResponse, Number.parseInt(selectedOption), scope)
+      // 2. Generate ZK proof
+      const scope = uuidToHex(uuid);
+      const proof = await generateProof(
+        identity,
+        merkleProofResponse,   // i dont even know what's up, but it works lol
+        Number.parseInt(selectedOption),
+        scope
+      );
 
-        // 3. Submit vote
-        const payload = {
-          group_uuid: groupUuid,
-          proof: proof,
-        }
+      // 3. Submit vote
+      const payload = {
+        group_uuid: groupUuid,
+        proof: proof,
+      };
 
-        await api.castVote(uuid, payload)
+      await api.castVote(uuid, payload);
 
-        toast({
-          title: "Success",
-          description: "Your vote has been cast successfully",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        })
+      toast({
+        title: "Success",
+        description: "Your vote has been cast successfully",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
 
-        // Navigate back to voting details
-        navigate(`/votings/${uuid}`)
-      } catch (error) {
-        console.error("Error with merkle proof:", error)
-        setError("You are not a member of an eligible group for this voting.")
-      }
+      navigate(`/votings/${uuid}`);
     } catch (error) {
-      console.error("Error casting vote:", error)
-      setError("Failed to cast vote. Please try again.")
+      console.error("Error casting vote:", error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to cast vote. Please try again."
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   if (!address) {
     return (
@@ -130,13 +196,46 @@ export default function CastVote() {
           </CardBody>
         </Card>
       </Box>
-    )
+    );
+  }
+
+  if (isFetchingIdentity) {
+    return (
+      <Center h="200px">
+        <Spinner size="xl" />
+      </Center>
+    );
+  }
+
+  if (!identity) {
+    return (
+      <Box>
+        <Heading mb={6}>Cast Vote</Heading>
+        <Alert status="error">
+          <AlertIcon />
+          <AlertTitle>Identity Not Found</AlertTitle>
+          <AlertDescription>
+            You don't have a voting identity. Please create one first.
+          </AlertDescription>
+        </Alert>
+      </Box>
+    );
   }
 
   return (
     <Box>
       <Heading mb={6}>Cast Your Vote</Heading>
-
+      {votingDetails && (
+    <Text
+      fontSize="36px"
+      fontWeight="bold"
+      mb={6}
+      color="blue.600"
+      textAlign="center"
+    >
+      {votingDetails.name}
+    </Text>
+  )}
       {error && (
         <Alert status="error" mb={6}>
           <AlertIcon />
@@ -158,11 +257,6 @@ export default function CastVote() {
               placeholder="Enter the UUID of the group you belong to"
             />
           </FormControl>
-
-          <Text fontSize="sm" color="gray.600">
-            Your identity commitment:{" "}
-            {identity ? identity.commitment.toString().substring(0, 10) + "..." : "Loading..."}
-          </Text>
         </CardBody>
       </Card>
 
@@ -193,6 +287,5 @@ export default function CastVote() {
         </CardFooter>
       </Card>
     </Box>
-  )
+  );
 }
-

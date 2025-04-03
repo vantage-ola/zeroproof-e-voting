@@ -98,13 +98,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const nonce = await api.getNonce(address)
-      console.log(nonce)
       // Encode message and nonce according to backend format
       const base64message = ethers.encodeBase64(ethers.toUtf8Bytes(JSON.stringify(message)))
       const base64nonce = ethers.encodeBase64(ethers.toUtf8Bytes(nonce.toString()))
       const content = base64nonce + "." + base64message
 
-      console.log(content, address)
       // Request signature from MetaMask
       const signature = await window.ethereum.request({
         method: "personal_sign",
@@ -113,7 +111,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       //const wallet = new ethers.Wallet("0xa9c5f5773bd2349ff47b84754cd178605ed57dce10a3d5f6b854748501d06a8b");
       //const signature = wallet.signMessageSync(content);
 
-      //console.log(signature)
 
       // Return the payload
       return {

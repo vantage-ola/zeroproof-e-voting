@@ -39,7 +39,6 @@ export default function Votings() {
   const [isLoadingVotings, setIsLoadingVotings] = useState(false)
   const toast = useToast()
 
-  // Update the fetchVotings function to use the real API
   const fetchVotings = async () => {
     setIsLoadingVotings(true)
     try {
